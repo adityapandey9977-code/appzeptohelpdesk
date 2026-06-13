@@ -4,6 +4,40 @@ const Ticket = require('../models/Ticket');
 const { assignTicket, assignOldestQueued } = require('../utils/assign');
 const { SLA_HOURS, processSLA } = require('../utils/sla');
 
+// GET /api/tickets/stats - Counts grouped by status and priority (single aggregation pipeline)
+router.get('/stats', async (req, res) => {
+  try {
+    const stats = await Ticket.aggregate([
+      {
+        $facet: {
+          byStatus: [
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+          ],
+          byPriority: [
+            { $group: { _id: '$priority', count: { $sum: 1 } } }
+          ]
+        }
+      }
+    ]);
+
+    const facetResult = stats[0] || { byStatus: [], byPriority: [] };
+    const byStatus = { Queued: 0, Open: 0, 'In Progress': 0, Resolved: 0, Closed: 0 };
+    const byPriority = { Low: 0, Medium: 0, High: 0, Critical: 0 };
+
+    facetResult.byStatus.forEach(item => {
+      if (item._id) byStatus[item._id] = item.count;
+    });
+    facetResult.byPriority.forEach(item => {
+      if (item._id) byPriority[item._id] = item.count;
+    });
+
+    res.json({ byStatus, byPriority });
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
 // POST /api/tickets - Create ticket
 router.post('/', async (req, res) => {
   try {
@@ -44,7 +78,81 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PATCH /api/tickets/:id - Update ticket with optimistic locking and status transitions
+// GET /api/tickets - List tickets with query filters, sorting, pagination, and SLA processing
+router.get('/', async (req, res) => {
+  try {
+    const { status, priority, search, sort, page = 1, limit = 6 } = req.query;
+
+    const match = {};
+    if (status) match.status = status;
+    if (priority) match.priority = priority;
+    if (search) {
+      match.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // 1. Fetch matching tickets
+    const tickets = await Ticket.find(match);
+
+    // 2. Compute SLA & priority auto-bump for each ticket
+    const processedTickets = [];
+    for (let ticket of tickets) {
+      processedTickets.push(await processSLA(ticket));
+    }
+
+    // 3. In-memory sorting (easy to implement and explain for custom priority)
+    if (sort === 'priority') {
+      const weights = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+      processedTickets.sort((a, b) => {
+        if (weights[a.priority] !== weights[b.priority]) {
+          return weights[b.priority] - weights[a.priority];
+        }
+        return b.createdAt - a.createdAt;
+      });
+    } else if (sort === 'oldest') {
+      processedTickets.sort((a, b) => a.createdAt - b.createdAt);
+    } else {
+      // default: newest
+      processedTickets.sort((a, b) => b.createdAt - a.createdAt);
+    }
+
+    // 4. Paginate in-memory
+    const totalCount = processedTickets.length;
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+    const totalPages = Math.ceil(totalCount / parsedLimit);
+    const startIndex = (parsedPage - 1) * parsedLimit;
+    const paginatedTickets = processedTickets.slice(startIndex, startIndex + parsedLimit);
+
+    res.json({
+      tickets: paginatedTickets,
+      totalPages,
+      currentPage: parsedPage
+    });
+  } catch (error) {
+    console.error('Error listing tickets:', error);
+    res.status(500).json({ error: 'Failed to list tickets' });
+  }
+});
+
+// GET /api/tickets/:id - Fetch single ticket
+router.get('/:id', async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found.' });
+    }
+    const processed = await processSLA(ticket);
+    res.json(processed);
+  } catch (error) {
+    console.error('Error fetching ticket:', error);
+    res.status(500).json({ error: 'Failed to fetch ticket' });
+  }
+});
+
+// PATCH /api/tickets/:id - Update ticket
 router.patch('/:id', async (req, res) => {
   try {
     const { status: newStatus, priority, title, description, category, version } = req.body;
@@ -67,14 +175,14 @@ router.patch('/:id', async (req, res) => {
     const oldStatus = ticket.status;
     const oldPriority = ticket.priority;
 
-    // Validate status transitions if status is changing
+    // Validate status transition
     if (newStatus && newStatus !== oldStatus) {
       const ALLOWED_TRANSITIONS = {
-        'Queued': [], // Cannot manually move out of Queued
+        'Queued': [],
         'Open': ['In Progress'],
         'In Progress': ['Resolved'],
         'Resolved': ['In Progress', 'Closed'],
-        'Closed': [] // Nothing can leave Closed
+        'Closed': []
       };
 
       const allowed = ALLOWED_TRANSITIONS[oldStatus] || [];
@@ -88,7 +196,6 @@ router.patch('/:id', async (req, res) => {
       ticket.history.push({ message: `Status changed from ${oldStatus} to ${newStatus}` });
     }
 
-    // Update other fields
     if (title) ticket.title = title;
     if (description) ticket.description = description;
     if (category) ticket.category = category;
@@ -97,12 +204,9 @@ router.patch('/:id', async (req, res) => {
       ticket.history.push({ message: `Priority changed from ${oldPriority} to ${priority}` });
     }
 
-    // Increment version on update
     ticket.version += 1;
-
     const savedTicket = await ticket.save();
 
-    // Reassignment check: if it was active and now inactive (Resolved or Closed), assign oldest queued ticket
     const wasActive = ['Open', 'In Progress'].includes(oldStatus);
     const isNowActive = ['Open', 'In Progress'].includes(savedTicket.status);
 
@@ -115,6 +219,36 @@ router.patch('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating ticket:', error);
     res.status(500).json({ error: 'Failed to update ticket' });
+  }
+});
+
+// POST /api/tickets/:id/comments - Add a comment
+router.post('/:id/comments', async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || text.trim().length < 3) {
+      return res.status(400).json({ error: 'Comment must be at least 3 characters.' });
+    }
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found.' });
+    }
+
+    if (ticket.status === 'Closed') {
+      return res.status(400).json({ error: 'Comments are not allowed on closed tickets.' });
+    }
+
+    ticket.comments.push({ text: text.trim() });
+    ticket.version += 1;
+    const savedTicket = await ticket.save();
+
+    const processed = await processSLA(savedTicket);
+    res.json(processed);
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({ error: 'Failed to add comment' });
   }
 });
 
