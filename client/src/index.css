@@ -4,6 +4,20 @@
   --border-color: #334155;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
+  --navbar-bg: #1e293b;
+  --input-bg: #0f172a;
+  --input-text: #f8fafc;
+}
+
+.light-theme {
+  --bg-color: #f1f5f9;
+  --card-bg: #ffffff;
+  --border-color: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --navbar-bg: #f8fafc;
+  --input-bg: #ffffff;
+  --input-text: #0f172a;
 }
 
 body {
@@ -21,7 +35,28 @@ body {
 
 .card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Card Header & Footer style overrides for theme compatibility */
+.card-header, .card-footer {
+  background-color: var(--navbar-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Input styles overrides for light/dark theme compatibility */
+.form-control, .form-select {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.form-control:focus, .form-select:focus {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border-color: #0dcaf0 !important;
+  box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.25) !important;
 }
 
 .text-muted {
@@ -52,7 +87,6 @@ body {
   animation: pulse-ring 2s infinite;
 }
 
-/* Toast container positioning */
 .toast-container-custom {
   position: fixed;
   bottom: 20px;
