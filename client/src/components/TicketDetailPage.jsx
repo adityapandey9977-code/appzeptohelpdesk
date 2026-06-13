@@ -315,21 +315,21 @@ function TicketDetailPage() {
               
               <div className="mb-4">
                 <h5 className="fw-bold mb-2">Description</h5>
-                <p className="text-light lead" style={{ whiteSpace: 'pre-wrap' }}>
+                <p className="lead" style={{ whiteSpace: 'pre-wrap' }}>
                   {ticket.description}
                 </p>
               </div>
 
-              <div className="row g-3 bg-dark bg-opacity-40 p-3 rounded border border-secondary">
+              <div className="row g-3 bg-opacity-40 p-3 rounded border border-secondary" style={{ backgroundColor: 'var(--input-bg)' }}>
                 <div className="col-sm-6">
                   <div className="small text-muted text-uppercase">Assigned Agent</div>
-                  <div className="fw-bold fs-5 text-light mt-1">
+                  <div className="fw-bold fs-5 mt-1">
                     {ticket.assignedAgent ? `👤 ${ticket.assignedAgent}` : '⏳ Unassigned'}
                   </div>
                 </div>
                 <div className="col-sm-6">
                   <div className="small text-muted text-uppercase">Priority</div>
-                  <div className="fw-bold fs-5 text-light mt-1">
+                  <div className="fw-bold fs-5 mt-1">
                     {ticket.priority}
                   </div>
                 </div>
@@ -347,7 +347,7 @@ function TicketDetailPage() {
               <div className="mt-sm-0 mt-3">
                 <span className="small text-muted d-block text-sm-end mb-1">Update Status</span>
                 <select
-                  className="form-select bg-dark text-light border-secondary form-select-sm px-3 py-2"
+                  className="form-select form-select-sm px-3 py-2"
                   value={ticket.status}
                   disabled={isClosed || isQueued}
                   onChange={(e) => handleStatusChange(e.target.value)}
@@ -381,14 +381,14 @@ function TicketDetailPage() {
               ) : (
                 <div className="mb-4">
                   {ticket.comments.map((comment, index) => (
-                    <div key={comment._id || index} className="mb-3 p-3 bg-dark bg-opacity-35 rounded border border-secondary">
+                    <div key={comment._id || index} className="mb-3 p-3 bg-opacity-35 rounded border border-secondary" style={{ backgroundColor: 'var(--input-bg)' }}>
                       <div className="d-flex justify-content-between align-items-center mb-2">
                         <span className="fw-bold text-info">Support Agent</span>
                         <span className="small text-muted">
                           {new Date(comment.createdAt).toLocaleString()}
                         </span>
                       </div>
-                      <p className="mb-0 text-light">{comment.text}</p>
+                      <p className="mb-0">{comment.text}</p>
                     </div>
                   ))}
                 </div>
@@ -408,7 +408,7 @@ function TicketDetailPage() {
                   <textarea
                     id="commentText"
                     rows="3"
-                    className="form-control bg-dark text-light border-secondary"
+                    className="form-control"
                     placeholder="Enter your update message (min 3 characters)"
                     value={commentText}
                     disabled={isClosed}
@@ -461,7 +461,7 @@ function TicketDetailPage() {
                       <div className="small text-muted">
                         {new Date(log.createdAt).toLocaleString()}
                       </div>
-                      <div className="text-light fw-bold mt-1">
+                      <div className="fw-bold mt-1">
                         {log.message}
                       </div>
                     </div>
@@ -477,7 +477,7 @@ function TicketDetailPage() {
       {showConflictModal && serverState && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.75)' }} tabIndex="-1" role="dialog">
           <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
-            <div className="modal-content bg-dark border-danger text-light">
+            <div className="modal-content border-danger" style={{ backgroundColor: 'var(--card-bg)', color: 'var(--text-primary)' }}>
               <div className="modal-header border-secondary bg-danger bg-opacity-10 py-3">
                 <h5 className="modal-title text-danger fw-bold">⚠️ Concurrency Conflict (409)</h5>
               </div>
