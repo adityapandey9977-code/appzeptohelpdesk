@@ -59,6 +59,12 @@ body {
   box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.25) !important;
 }
 
+.form-control::placeholder {
+  color: var(--text-secondary) !important;
+  opacity: 0.65 !important;
+}
+
+
 .text-muted {
   color: var(--text-secondary) !important;
 }
