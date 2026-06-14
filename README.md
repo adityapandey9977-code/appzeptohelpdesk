@@ -12,7 +12,7 @@ The frontend is styled using **Bootstrap CSS** with custom dark theme overlays f
 
 ---
 
-## Key Features & Interview Guide
+## Key Features
 
 ### 1. Auto-Assignment & Load Balancing (`/server/utils/assign.js`)
 * **Logic**: When a ticket is created, it is allocated to the agent with the lowest active load percentage (`active tickets / maxLoad`).
